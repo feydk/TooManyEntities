@@ -23,57 +23,78 @@ package com.winthier.toomanyentities;
 
 import java.util.Collection;
 import java.util.LinkedList;
-import java.util.List;
+
+import org.bukkit.ChatColor;
 import org.bukkit.World;
 import org.bukkit.command.CommandSender;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.Monster;
 import org.bukkit.scheduler.BukkitRunnable;
 
-public class SweepTask extends BukkitRunnable {
-        private TooManyEntitiesPlugin plugin;
-        private CommandSender sender;
-        private int monstersPerTick;
-        private LinkedList<Monster> monsters = new LinkedList<Monster>();
+public class SweepTask extends BukkitRunnable
+{
+    private TooManyEntitiesPlugin plugin;
+    private CommandSender sender;
+    private int monstersPerTick;
+    private LinkedList<Monster> monsters = new LinkedList<Monster>();
 
-        public SweepTask(TooManyEntitiesPlugin plugin, CommandSender sender, int monstersPerTick) {
-                this.plugin = plugin;
-                this.sender = sender;
-                this.monstersPerTick = monstersPerTick;
-        }
+    public SweepTask(TooManyEntitiesPlugin plugin, CommandSender sender, int monstersPerTick)
+    {
+        this.plugin = plugin;
+        this.sender = sender;
+        this.monstersPerTick = monstersPerTick;
+    }
 
-        @Override
-        public void run() {
-                for (int i = 0; i < monstersPerTick; ++i) {
-                        if (monsters.isEmpty()) {
-                                stop();
-                                return;
-                        } else {
-                                Monster monster = monsters.removeFirst();
-                                if (monster.getCustomName() != null) continue;
-                                if (!monster.getRemoveWhenFarAway()) continue;
-                                monster.remove();
-                        }
-                }
-        }
+    @Override
+    public void run()
+    {
+        for(int i = 0; i < monstersPerTick; ++i)
+        {
+            if(monsters.isEmpty())
+            {
+                stop();
+                return;
+            }
+            else
+            {
+                Monster monster = monsters.removeFirst();
 
-        public void init() {
-                for (World world : plugin.getServer().getWorlds()) {
-                        Collection<Monster> e = world.getEntitiesByClass(Monster.class);
-                        sender.sendMessage(world.getName() + ": " + e.size() + " monsters");
-                        monsters.addAll(e);
-                }
-                sender.sendMessage("[TooManyEntities] Sweeping monsters");
-        }
+	            if(monster.getCustomName() != null)
+		            continue;
 
-        public void start() {
-                runTaskTimer(plugin, 0L, 1L);
-        }
+                if(!monster.getRemoveWhenFarAway())
+	                continue;
 
-        public void stop() {
-                sender.sendMessage("[TooManyEntities] Done");
-                try {
-                        cancel();
-                } catch (Exception e) {}
+	            monster.remove();
+            }
         }
+    }
+
+    public void init()
+    {
+	    sender.sendMessage("" + ChatColor.YELLOW + "Too Many Entities - sweeping monsters...");
+
+	    for(World world : plugin.getServer().getWorlds())
+        {
+            Collection<Monster> e = world.getEntitiesByClass(Monster.class);
+	        sender.sendMessage(" " + ChatColor.LIGHT_PURPLE + world.getName() + " " + ChatColor.WHITE + e.size() + " monsters");
+            monsters.addAll(e);
+        }
+    }
+
+    public void start()
+    {
+        runTaskTimer(plugin, 0L, 1L);
+    }
+
+    public void stop()
+    {
+	    sender.sendMessage("" + ChatColor.YELLOW + "Done.");
+
+        try
+        {
+            cancel();
+        }
+        catch(Exception e)
+        {}
+    }
 }

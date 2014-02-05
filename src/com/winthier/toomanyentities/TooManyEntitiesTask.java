@@ -1,23 +1,23 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- * Copyright 2012 StarTux
- *
- * This file is part of TooManyEntities.
- *
- * TooManyEntities is free software: you can redistribute it
- * and/or modify it under the terms of the GNU General Public
- * License as published by the Free Software Foundation, either
- * version 3 of the License, or (at your option) any later
- * version.
- *
- * TooManyEntities is distributed in the hope that it will be
- * useful, but WITHOUT ANY WARRANTY; without even the implied
- * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- * PURPOSE.  See the GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public
- * License along with TooManyEntities.  If not, see
- * <http://www.gnu.org/licenses/>.
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+* Copyright 2012 StarTux
+*
+* This file is part of TooManyEntities.
+*
+* TooManyEntities is free software: you can redistribute it
+* and/or modify it under the terms of the GNU General Public
+* License as published by the Free Software Foundation, either
+* version 3 of the License, or (at your option) any later
+* version.
+*
+* TooManyEntities is distributed in the hope that it will be
+* useful, but WITHOUT ANY WARRANTY; without even the implied
+* warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+* PURPOSE.  See the GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public
+* License along with TooManyEntities.  If not, see
+* <http://www.gnu.org/licenses/>.
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 package com.winthier.toomanyentities;
 
@@ -33,97 +33,177 @@ import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 
-public class TooManyEntitiesTask extends BukkitRunnable {
-        TooManyEntitiesPlugin plugin;
-        private CommandSender sender;
-        private int limit;
-        private double radius;
-        private int checksPerTick;
-        private LinkedList<Entity> entities = new LinkedList<Entity>();
-        private Set<Entity> findings = new HashSet<Entity>();
-        private EntityType filter = null;
+public class TooManyEntitiesTask extends BukkitRunnable
+{
+    TooManyEntitiesPlugin plugin;
+    private CommandSender sender;
+    private int limit;
+    private double radius;
+	private Player player;
+	private boolean exclude;
+    private int checksPerTick;
+    private LinkedList<Entity> entities = new LinkedList<Entity>();
+    private Set<Entity> findings = new HashSet<Entity>();
+    private EntityType type = null;
+	private LinkedList<EntityType> excluded_types = new LinkedList<EntityType>();
+	private boolean first = true;
+	private boolean found = false;
 
-        public TooManyEntitiesTask(TooManyEntitiesPlugin plugin, CommandSender sender,
-                                   int limit, double radius, EntityType filter, int checksPerTick) {
-                this.plugin = plugin;
-                this.sender = sender;
-                this.limit = limit;
-                this.radius = radius;
-                this.filter = filter;
-                this.checksPerTick = checksPerTick;
+    public TooManyEntitiesTask(TooManyEntitiesPlugin plugin, CommandSender sender, double radius, int limit, EntityType type, boolean exclude, int checksPerTick)
+    {
+        this.plugin = plugin;
+        this.sender = sender;
+        this.limit = limit;
+        this.radius = radius;
+        this.type = type;
+	    this.exclude = exclude;
+        this.checksPerTick = checksPerTick;
+
+	    if(exclude)
+	    {
+		    EntityType[] types = EntityType.values();
+
+		    for(int i = 0; i < types.length; i++)
+		    {
+			    if(!types[i].isAlive())
+				    excluded_types.add(types[i]);
+		    }
+	    }
+    }
+
+    @Override
+    public void run()
+    {
+	    if(first)
+	    {
+		    String s = "";
+
+		    s += "more than " + limit + " ";
+
+		    if(type != null)
+			    s += type.name().toLowerCase();
+		    else
+			    s += "entities";
+
+		    s += " in a radius of " + radius;
+
+		    if(exclude)
+			    s+= ", excluding non-mobs";
+
+		    sender.sendMessage("" + ChatColor.YELLOW + "Too Many Entities - search result for " + s + ":");
+
+		    first = false;
+	    }
+
+	    for(int i = 0; i < checksPerTick; ++i)
+	    {
+		    if(entities.isEmpty())
+		    {
+			    if(!found)
+			        sender.sendMessage(" " + ChatColor.WHITE + "Nothing found");
+
+			    stop();
+			    return;
+		    }
+		    else
+		    {
+			    Entity entity = entities.removeFirst();
+
+			    if(!entity.isValid())
+				    continue;
+
+			    if(findings.contains(entity))
+				    continue;
+
+			    if(type != null && entity.getType() != type)
+				    continue;
+
+			    List<Entity> tmp = entity.getNearbyEntities(radius, radius, radius);
+			    List<Entity> nearby = new ArrayList<Entity>(tmp.size() + 1);
+
+			    for(Entity e : tmp)
+			    {
+				    boolean add = false;
+
+				    if(type == null || e.getType() == type)
+					    add = true;
+
+				    if(exclude && excluded_types.contains(e.getType()))
+					    add = false;
+
+				    if(add)
+					    nearby.add(e);
+			    }
+
+			    nearby.add(entity);
+
+			    if(nearby.size() > limit)
+			    {
+				    report(nearby);
+				    findings.add(entity);
+				    findings.addAll(nearby);
+				    found = true;
+			    }
+		    }
+	    }
+    }
+
+    public void report(List<Entity> entities)
+    {
+        Location loc = entities.get(0).getLocation();
+        EntityType top = null;
+        int max = 0;
+        EnumMap<EntityType, Integer> entityCount = new EnumMap<EntityType, Integer>(EntityType.class);
+
+	    for(Entity entity : entities)
+	    {
+            int count = 1;
+            Integer tmp = entityCount.get(entity.getType());
+
+		    if(tmp != null)
+			    count = tmp + 1;
+
+            entityCount.put(entity.getType(), count);
+
+		    if(count > max)
+		    {
+                max = count;
+                top = entity.getType();
+                loc = entity.getLocation(loc);
+            }
         }
 
-        @Override
-        public void run() {
-                for (int i = 0; i < checksPerTick; ++i) {
-                        if (entities.isEmpty()) {
-                                stop();
-                                return;
-                        } else {
-                                Entity entity = entities.removeFirst();
-                                if (!entity.isValid()) continue;
-                                if (findings.contains(entity)) continue;
-                                if (filter != null && entity.getType() != filter) continue;
-                                List<Entity> tmp = entity.getNearbyEntities(radius, radius, radius);
-                                List<Entity> nearby = new ArrayList<Entity>(tmp.size() + 1);
-                                for (Entity e : tmp) {
-                                        if (filter == null || e.getType() == filter) nearby.add(e);
-                                }
-                                nearby.add(entity);
-                                if (nearby.size() > limit) {
-                                        report(nearby);
-                                        findings.add(entity);
-                                        findings.addAll(nearby);
-                                }
-                        }
-                }
-        }
+	    sender.sendMessage(" " + ChatColor.WHITE + entities.size() + " found in " + ChatColor.LIGHT_PURPLE + loc.getWorld().getName() + " " + ChatColor.WHITE + "at " + ChatColor.GREEN + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ() + " " + ChatColor.WHITE + "(mostly " + niceEntityName(top) + ")");
+    }
 
-        public void report(List<Entity> entities) {
-                Location loc = entities.get(0).getLocation();
-                EntityType top = null;
-                int max = 0;
-                EnumMap<EntityType, Integer> entityCount = new EnumMap<EntityType, Integer>(EntityType.class);
-                for (Entity entity : entities) {
-                        int count = 1;
-                        Integer tmp = entityCount.get(entity.getType());
-                        if (tmp != null) count = tmp + 1;
-                        entityCount.put(entity.getType(), count);
-                        if (count > max) {
-                                max = count;
-                                top = entity.getType();
-                                loc = entity.getLocation(loc);
-                        }
-                }
-                sender.sendMessage(String.format("[TME] %s%d entities at %s:%d,%d,%d, mostly %s",
-                                                 ChatColor.RED, entities.size(), loc.getWorld().getName(),
-                                                 loc.getBlockX(), loc.getBlockY(), loc.getBlockZ(),
-                                                 niceEntityName(top)));
+    public void init()
+    {
+	    for(World world : plugin.getServer().getWorlds())
+        {
+            entities.addAll(world.getEntities());
         }
+    }
 
-        public void init() {
-                for (World world : plugin.getServer().getWorlds()) {
-                        List<Entity> e = world.getEntities();
-                        sender.sendMessage(world.getName() + ": " + e.size() + " entities");
-                        entities.addAll(e);
-                }
-                sender.sendMessage("[TooManyEntities] Scanning");
-        }
+    public void start()
+    {
+		runTaskTimer(plugin, 0L, 1L);
+    }
 
-        public void start() {
-                runTaskTimer(plugin, 0L, 1L);
+    public void stop()
+    {
+        try
+        {
+            cancel();
         }
+        catch(Exception e)
+        {}
+    }
 
-        public void stop() {
-                sender.sendMessage("[TooManyEntities] Done");
-                try {
-                        cancel();
-                } catch (Exception e) {}
-        }
-
-        private static String niceEntityName(EntityType e) {
-                return e.name().toLowerCase().replaceAll("_", " ");
-        }
+    private static String niceEntityName(EntityType e)
+    {
+        return e.name().toLowerCase().replaceAll("_", " ");
+    }
 }

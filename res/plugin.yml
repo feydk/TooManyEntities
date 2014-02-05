@@ -7,9 +7,6 @@ commands:
   TooManyEntities:
     aliases: [ tme ]
     description: command interface
-    usage: |-
-      /<command> scan [limit] [radius] [type]
-      /<command> sweep - Remove all unneeded monsters
     permission: toomanyentities.toomanyentities
 permissions:
   toomanyentities.toomanyentities:
