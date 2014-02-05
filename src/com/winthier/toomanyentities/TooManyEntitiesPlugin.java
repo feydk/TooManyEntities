@@ -131,7 +131,7 @@ public class TooManyEntitiesPlugin extends JavaPlugin
 		        task.init();
 		        task.start();
 		        return true;
-            }
+			}
 	        else if(param_command.equals("sweep"))
 	        {
 		        SweepTask task = new SweepTask(this, sender, 500);
